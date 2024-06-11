@@ -1,0 +1,6 @@
+streamlit==1.14.0
+pandas==1.4.2
+nltk==3.7
+openai==0.10.2
+lancedb==0.1.0
+pydantic==1.9.0
