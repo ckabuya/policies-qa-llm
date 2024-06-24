@@ -9,6 +9,8 @@ import lancedb
 from lancedb.embeddings import get_registry
 from lancedb.pydantic import LanceModel, Vector
 import streamlit_authenticator as stauth
+import pypdf
+import docx
 
 # Load the YAML configuration file
 with open('config.yaml') as file:
@@ -34,79 +36,57 @@ name, authentication_status, username = authenticator.login("main", fields={
 # Initialize the LLM client without a hard-coded model
 client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
 
-# Recursive Text Splitter
-def recursive_text_splitter(text, max_chunk_length=1000, overlap=100):
-    """
-    Helper function for chunking text recursively
-    """
-    result = []
-    current_chunk_count = 0
-    separator = ["\n", " "]
-    _splits = re.split(f"({'|'.join(separator)})", text)
-    splits = [_splits[i] + _splits[i + 1] for i in range(1, len(_splits), 2)]
+# Function to extract text from PDF using pypdf
+def extract_text_from_pdf(pdf_file):
+    reader = pypdf.PdfReader(pdf_file)
+    text = ''
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
 
-    for i in range(len(splits)):
-        if current_chunk_count != 0:
-            chunk = "".join(
-                splits[
-                    current_chunk_count - overlap : current_chunk_count + max_chunk_length
-                ]
-            )
-        else:
-            chunk = "".join(splits[0:max_chunk_length])
+# Function to extract text from DOCX
+def extract_text_from_docx(docx_file):
+    doc = docx.Document(docx_file)
+    text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+    return text
 
-        if len(chunk) > 0:
-            result.append("".join(chunk))
-        current_chunk_count += max_chunk_length
-
-    return result
-
-# Define schema for table with embedding api
-model = get_registry().get("colbert").create(name="colbert-ir/colbertv2.0")
-
-class TextModel(LanceModel):
-    text: str = model.SourceField()
-    vector: Vector(model.ndims()) = model.VectorField()
-
-# Add in vector db
-def lanceDBConnection(df):
-    db = lancedb.connect("/tmp/lancedb")
-    table = db.create_table(
-        "policies",
-        schema=TextModel,
-        mode="overwrite",
+# Function to generate summary
+def generate_summary(text):
+    response = client.completions.create(
+        model="text-davinci-002",
+        prompt=f"Summarize the following text:\n\n{text}",
+        max_tokens=150
     )
-    table.add(df)
-    return table
-
-# Read all markdown files from the directory
-def read_policies_from_directory(directory):
-    all_chunks = []
-    for filename in os.listdir(directory):
-        if filename.endswith(".md"):
-            filepath = os.path.join(directory, filename)
-            with open(filepath, "r", encoding="utf-8") as file:
-                text_data = file.read()
-                chunks = recursive_text_splitter(text_data, max_chunk_length=100, overlap=10)
-                all_chunks.extend(chunks)
-    return all_chunks
-
-# List policies from the directory
-def list_policies(directory):
-    policies = []
-    for filename in os.listdir(directory):
-        if filename.endswith(".md"):
-            policies.append(filename)
-    return policies
+    summary = response.choices[0].text.strip()
+    return summary
 
 if authentication_status:
     # Initialize the Streamlit app
-    st.title("University Policies Q&A using Local LLM")
-    st.caption("Ask questions based on preloaded university policies stored in markdown format.")
+    st.title("University Policies Q&A and Summarization")
+    st.caption("Upload policy documents to get concise summaries.")
 
     # Add a logout button
     authenticator.logout("Logout", "sidebar")
 
+    # File upload
+    uploaded_file = st.file_uploader("Upload a policy document", type=["pdf", "docx", "txt"])
+    if uploaded_file is not None:
+        if uploaded_file.type == "application/pdf":
+            text = extract_text_from_pdf(uploaded_file)
+        elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            text = extract_text_from_docx(uploaded_file)
+        else:
+            text = uploaded_file.read().decode("utf-8")
+
+        st.subheader("Document Text")
+        st.text_area("Document Text", text, height=300)
+
+        if st.button("Generate Summary"):
+            summary = generate_summary(text)
+            st.subheader("Summary")
+            st.write(summary)
+
+    # Other existing functionality
     # Read and process policies from the specified directory
     policy_directory = "policies"  # Update with the actual path to your directory
     policy_chunks = read_policies_from_directory(policy_directory)
@@ -172,7 +152,7 @@ if authentication_status:
     """
                 prompt = training_prompt.format(question, user_answer)
 
-                response = client.chat.completions.create(
+                response = client.completions.create(
                     model=selected_model, 
                     messages=[{"role": "system", "content": prompt}],
                     temperature=0.7
