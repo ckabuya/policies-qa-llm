@@ -82,30 +82,64 @@ table = lanceDBConnection(df)
 
 st.write("Policies successfully loaded and stored in the vector database.")
 
-# Accept user question
-question = st.text_input("Ask a question about the company policies:")
-if question:
-    # Semantic Search
-    result = table.search(question).limit(5).to_list()
-    context = [r["text"] for r in result]
+# Add a navigation sidebar
+st.sidebar.title("Navigation")
+page = st.sidebar.selectbox("Go to", ["Policy Q&A", "Policy Training"])
 
-    # Context Prompt
-    base_prompt = """You are a virtual assistant specialized in understanding and explaining company policies. Your task is to read the user question, consult the provided contexts, and generate an accurate, detailed, and clear response based on the policies. Every answer you provide should include specific citations from the provided contexts in the format "Answer [position]", for example: "Employees are entitled to two weeks of paid vacation per year [1][2]." If the provided context does not contain the answer, simply state, "The provided context does not contain the answer."
+if page == "Policy Q&A":
+    # Policy Q&A interface
+    question = st.text_input("Ask a question about the company policies:")
+    if question:
+        result = table.search(question).limit(5).to_list()
+        context = [r["text"] for r in result]
+
+        base_prompt = """You are a virtual assistant specialized in understanding and explaining company policies. Your task is to read the user question, consult the provided contexts, and generate an accurate, detailed, and clear response based on the policies. Every answer you provide should include specific citations from the provided contexts in the format "Answer [position]", for example: "Employees are entitled to two weeks of paid vacation per year [1][2]." If the provided context does not contain the answer, simply state, "The provided context does not contain the answer."
 
 User question: {}
 
 Contexts:
 {}
 """
-    prompt = base_prompt.format(question, context)
+        prompt = base_prompt.format(question, context)
 
-    # Generate response using local LLM
-    response = client.chat.completions.create(
-         model="lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf", 
-        messages=[{"role": "system", "content": prompt}],
-        temperature=0.7
-    )
+        response = client.chat.completions.create(
+            model="lmstudio-ai/gemma-2b-it-GGUF/gemma-2b-it-q8_0.gguf", 
+            messages=[{"role": "system", "content": prompt}],
+            temperature=0.7
+        )
 
-    # Display the response
-    st.write("Response from LLM:")
-    st.markdown(response.choices[0].message.content, unsafe_allow_html=True)
+        st.write("Response from LLM:")
+        st.markdown(response.choices[0].message.content, unsafe_allow_html=True)
+
+elif page == "Policy Training":
+    st.header("Policy Training Module")
+
+    questions = [
+        "What is the company's policy on remote work?",
+        "Describe the equal opportunity policy.",
+        "What are the guidelines for professional conduct?"
+    ]
+
+    for idx, question in enumerate(questions):
+        st.subheader(f"Question {idx+1}: {question}")
+        user_answer = st.text_area(f"Your answer to Question {idx+1}")
+
+        if st.button(f"Submit Answer to Question {idx+1}"):
+            training_prompt = """You are a virtual assistant specialized in understanding and explaining company policies. Your task is to provide feedback on the user's answer to the following question:
+
+Question: {}
+
+User's answer: {}
+
+Please provide detailed feedback, citing relevant policies.
+"""
+            prompt = training_prompt.format(question, user_answer)
+
+            response = client.chat.completions.create(
+                model="lmstudio-ai/gemma-2b-it-GGUF/gemma-2b-it-q8_0.gguf", 
+                messages=[{"role": "system", "content": prompt}],
+                temperature=0.7
+            )
+
+            st.write("Feedback from LLM:")
+            st.markdown(response.choices[0].message.content, unsafe_allow_html=True)
