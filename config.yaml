@@ -1,0 +1,22 @@
+credentials:
+  usernames:
+    johndoe:
+      email: johndoe@example.com
+      failed_login_attempts: 0
+      logged_in: False
+      name: John Doe
+      password: password123 # Will be hashed automatically
+    janesmith:
+      email: janesmith@example.com
+      failed_login_attempts: 0
+      logged_in: False
+      name: Jane Smith
+      password: password456 # Will be hashed automatically
+cookie:
+  expiry_days: 30
+  key: some_signature_key
+  name: some_cookie_name
+pre-authorized:
+  emails:
+  - johndoe@example.com
+  - janesmith@example.com
