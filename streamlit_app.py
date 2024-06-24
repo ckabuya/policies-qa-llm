@@ -104,6 +104,9 @@ if authentication_status:
     st.title("University Policies Q&A using Local LLM")
     st.caption("Ask questions based on preloaded university policies stored in markdown format.")
 
+    # Add a logout button
+    authenticator.logout("Logout", "sidebar")
+
     # Read and process policies from the specified directory
     policy_directory = "policies"  # Update with the actual path to your directory
     policy_chunks = read_policies_from_directory(policy_directory)
@@ -117,7 +120,7 @@ if authentication_status:
     page = st.sidebar.selectbox("Go to", ["Policy Q&A", "Policy Training", "List Policies"])
 
     # Add model selection to the sidebar
-    available_models = ["lmstudio-ai/gemma-2b-it-GGUF/gemma-2b-it-q8_0.gguf", "model-2", "model-3"]  # Add more models as needed
+    available_models = ["lmstudio-ai/gemma-2b-it-GGUF/gemma-2b-it-q8_0.gguf", "lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf", "model-3"]  # Add more models as needed
     selected_model = st.sidebar.selectbox("Select LLM model", available_models)
 
     if page == "Policy Q&A":
